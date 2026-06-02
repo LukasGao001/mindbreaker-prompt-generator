@@ -66,6 +66,19 @@
 >
 > 不启用 AI 时，工具完全本地离线运行（生成 Prompt → 复制 → 粘贴到任意 AI）。
 
+### 用代理直连不支持 CORS 的接口（MiniMax / Kimi 等）
+
+MiniMax、Kimi(Moonshot) 等官方接口不返回 CORS 头，浏览器无法直连。仓库提供了一个现成的 Cloudflare Worker 代理 [`proxy/cloudflare-worker.js`](./proxy/cloudflare-worker.js)（免费、约 2 分钟部署）：
+
+1. 在 [Cloudflare Workers](https://dash.cloudflare.com) 新建一个 Worker，粘贴该文件内容并 Deploy（或用 `wrangler deploy`）。
+2. 复制 Worker 的 URL（形如 `https://xxx.workers.dev`）。
+3. 在工具的「设置 / API」里：
+   - **Base URL** 填真实接口，如 MiniMax：`https://api.minimax.io/v1`，模型 `MiniMax-M3`
+   - **代理地址 Proxy URL** 填你的 Worker URL
+4. 保存后即可直连。原理：应用把真实目标地址放在 `X-Target-Url` 头里发给代理，代理转发并补上 CORS 头。
+
+代理只透传你的 `Authorization`，不保存任何 Key；可在 Worker 里限制 `ALLOW_ORIGINS` / `ALLOW_TARGET_HOSTS` 收紧权限。
+
 ---
 
 ## 🤝 贡献 Contributing

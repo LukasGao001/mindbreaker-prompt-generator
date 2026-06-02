@@ -401,6 +401,14 @@
         <input id="apiKey" type="password" placeholder="sk-..." />
       </div>
       <div class="field">
+        <label>代理地址 Proxy URL（可选）</label>
+        <input id="apiProxyUrl" placeholder="https://your-worker.workers.dev" />
+        <div class="field-help">
+          用于直连<b>不支持浏览器跨域(CORS)</b>的接口（如 MiniMax / Kimi 官方）。填入你的代理端点后，请求会经代理转发并带回 CORS 头。<br/>
+          部署方法见仓库 <code>proxy/cloudflare-worker.js</code>（Cloudflare Worker，免费、2 分钟搞定）。留空则浏览器直连。
+        </div>
+      </div>
+      <div class="field">
         <label><input type="checkbox" id="apiSmartMatch" style="width:auto; margin-right:6px;" />用 AI 智能匹配模型（替代本地关键词匹配）</label>
       </div>
       <div class="field">
@@ -674,7 +682,7 @@ const DEFAULT_STATE = {
   models: [],
   identity: "",
   attachments: [],
-  apiConfig: { enabled: false, baseUrl: "https://api.openai.com/v1", model: "gpt-5.5", apiKey: "", smartMatch: false, smartGen: false },
+  apiConfig: { enabled: false, baseUrl: "https://api.openai.com/v1", model: "gpt-5.5", apiKey: "", proxyUrl: "", smartMatch: false, smartGen: false },
   selected: { companyId: "af8", projectId: "", roleId: "" },
 };
 
@@ -1330,6 +1338,7 @@ function loadSettingsIntoForm() {
   $("apiBaseUrl").value = c.baseUrl || "";
   $("apiModel").value = c.model || "";
   $("apiKey").value = c.apiKey || "";
+  $("apiProxyUrl").value = c.proxyUrl || "";
   $("apiSmartMatch").checked = !!c.smartMatch;
   $("apiSmartGen").checked = !!c.smartGen;
 }
@@ -1345,6 +1354,7 @@ $("saveSettingsBtn").addEventListener("click", () => {
     baseUrl: $("apiBaseUrl").value.trim() || "https://api.openai.com/v1",
     model: $("apiModel").value.trim() || "gpt-5.5",
     apiKey: $("apiKey").value.trim(),
+    proxyUrl: $("apiProxyUrl").value.trim(),
     smartMatch: $("apiSmartMatch").checked,
     smartGen: $("apiSmartGen").checked,
   };
@@ -1366,9 +1376,16 @@ async function callAI(messages, { json = false } = {}) {
     headers["HTTP-Referer"] = location.origin || "https://github.com";
     headers["X-Title"] = "MindBreaker Prompt Generator";
   }
+  const target = c.baseUrl.replace(/\/$/, "") + "/chat/completions";
+  let url = target;
+  // 若配置了代理：把请求发到代理端点，并用 X-Target-Url 告知真实目标
+  if (c.proxyUrl && c.proxyUrl.trim()) {
+    url = c.proxyUrl.trim();
+    headers["X-Target-Url"] = target;
+  }
   let res;
   try {
-    res = await fetch(c.baseUrl.replace(/\/$/, "") + "/chat/completions", {
+    res = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -1378,7 +1395,7 @@ async function callAI(messages, { json = false } = {}) {
       }),
     });
   } catch (e) {
-    throw new Error("无法连接接口，多半是跨域(CORS)或网络被拦截。该接口可能不支持浏览器直连——建议改用支持 CORS 的网关，如 OpenRouter（Base URL：https://openrouter.ai/api/v1）。原始错误：" + e.message);
+    throw new Error("无法连接接口，多半是跨域(CORS)或网络被拦截。若目标接口不支持浏览器直连（如 MiniMax / Kimi 官方），请在「设置 / API」填入代理地址(Proxy URL)，或改用 OpenRouter。原始错误：" + e.message);
   }
   if (!res.ok) {
     let detail = "";
