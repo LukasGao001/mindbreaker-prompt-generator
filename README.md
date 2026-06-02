@@ -3,7 +3,7 @@
 > 用思维模型打破认知壁垒，把零散的任务"炼"成高质量、可直接粘贴给 AI 的 Prompt。
 > A single-file, local-first prompt generator that augments your tasks with mental models and reusable context — then produces a clean prompt you can paste into Claude / GPT.
 
-**[👉 在线使用 / Live Demo](https://LukasGao001.github.io/mindbreaker-prompt-generator/)**
+**[👉 在线使用 / Live Demo](https://lukasgao001.github.io/mindbreaker-prompt-generator/)**
 
 零安装、零依赖、零后端：整个工具就是**一个 HTML 文件**，下载双击即用，数据全部存在你本机浏览器里。
 
@@ -25,7 +25,7 @@
 ## 🚀 快速开始 Quick Start
 
 ### 方式一：在线直接用
-打开 **[在线版](https://LukasGao001.github.io/mindbreaker-prompt-generator/)** 即可，数据存在你自己的浏览器。
+打开 **[在线版](https://lukasgao001.github.io/mindbreaker-prompt-generator/)** 即可，数据存在你自己的浏览器。
 
 ### 方式二：本地使用
 1. 下载本仓库的 `index.html`（或 `Code → Download ZIP`）。
