@@ -1784,6 +1784,16 @@ function generateSkillMarkdown() {
   L.push("- [ ] 是否应用了上述思维原则");
   L.push("- [ ] 输出是否结构化、可执行、无明显遗漏");
   L.push("");
+  L.push("## 示例输入 / 输出（参考）");
+  L.push("**示例输入：**");
+  L.push("- " + (task ? task : "（一个典型的输入示例）"));
+  L.push("");
+  L.push("**期望输出（结构示意）：**");
+  L.push("- 结论先行：……");
+  L.push("- 关键分析 / 步骤结果：……");
+  L.push("- 风险与假设：……");
+  L.push("- 下一步行动：……");
+  L.push("");
   L.push("## 备注");
   L.push("- 本 Skill 由「思维破壁机」生成，可持续迭代优化。");
   return L.join("\n");
@@ -1804,15 +1814,22 @@ $("skillCopyBtn").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(text); showToast("已复制 SKILL.md"); }
   catch (e) { $("skillPreview").select(); document.execCommand("copy"); showToast("已复制 SKILL.md"); }
 });
+function skillFilename() {
+  const text = $("skillPreview").value;
+  const m = text.match(/^name:\s*(.+)$/m);
+  let base = slugify(m ? m[1] : "") || slugify($("taskInput").value) || "skill";
+  return base + ".md";
+}
 $("skillDownloadBtn").addEventListener("click", () => {
   const text = $("skillPreview").value;
   if (!text.trim()) { showToast("请先生成内容"); return; }
+  const fname = skillFilename();
   const blob = new Blob([text], { type: "text/markdown" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "SKILL.md"; a.click();
+  a.href = url; a.download = fname; a.click();
   URL.revokeObjectURL(url);
-  showToast("已下载 SKILL.md");
+  showToast("已下载 " + fname);
 });
 $("skillGenAiBtn").addEventListener("click", async () => {
   const cfg = state.apiConfig;
@@ -1823,7 +1840,7 @@ $("skillGenAiBtn").addEventListener("click", async () => {
   btn.disabled = true; btn.textContent = "AI 生成中…";
   try {
     const scaffold = generateSkillMarkdown();
-    const sys = "你是资深的流程设计与提示工程专家。请把给定任务沉淀为一个高质量、可复用的 Agent Skill 文件，严格用 SKILL.md 格式：以 YAML frontmatter（name 用 kebab-case 英文短横线；description 一句话说明何时使用）开头，正文用 Markdown，包含：适用场景、角色设定、背景与约束、标准操作流程(SOP，给出该任务具体可执行步骤)、所需输入、思维原则、表达与输出要求、质量检查清单。只输出 SKILL.md 内容本身，不要额外解释。";
+    const sys = "你是资深的流程设计与提示工程专家。请把给定任务沉淀为一个高质量、可复用的 Agent Skill 文件，严格用 SKILL.md 格式：以 YAML frontmatter（name 用 kebab-case 英文短横线、要能概括该任务；description 一句话说明何时使用）开头，正文用 Markdown，包含：适用场景、角色设定、背景与约束、标准操作流程(SOP，给出该任务具体可执行步骤)、所需输入、思维原则、表达与输出要求、质量检查清单、示例输入/输出（给出一个贴合该任务的具体示例）。只输出 SKILL.md 内容本身，不要额外解释。";
     const usr = "【任务】\n" + task + "\n\n【可参考的脚手架（含上下文与已选思维模型/框架）】\n" + scaffold;
     const result = await callAI([{ role: "system", content: sys }, { role: "user", content: usr }]);
     if (result && result.trim()) { $("skillPreview").value = result.trim(); showToast("AI 已生成 Skill"); }
