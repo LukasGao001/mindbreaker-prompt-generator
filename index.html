@@ -198,6 +198,10 @@
   .att-cb { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
   .att-cb input { width: 14px; height: 14px; accent-color: var(--accent); }
   .mem-textarea { min-height: 110px; font-size: 13px; }
+  .type-banner { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+  .type-chip { display: inline-block; font-size: 11px; color: var(--accent); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; margin: 0 4px 2px 0; }
+  .skill-tip { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); color: var(--text); font-size: 12px; }
+  .skill-preview textarea { min-height: 340px; font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.55; }
 </style>
 </head>
 <body>
@@ -295,6 +299,7 @@
     <textarea id="promptPreview" placeholder="点击下方 Generate 生成结构化 Prompt，可在此微调后复制。"></textarea>
     <div class="actions">
       <button class="primary" id="generateBtn">Generate</button>
+      <button id="skillBtn">生成 Skill (.md)</button>
       <button id="aiGenBtn" style="display:none;">AI 直接生成结果</button>
       <button id="copyBtn">复制</button>
       <button class="ghost" id="clearBtn">清空</button>
@@ -433,6 +438,28 @@
         <button class="small" id="aiMemoryBtn">AI 提炼并追加项目记忆</button>
       </div>
       <div class="field-help" style="margin-top:8px;">AI 提炼：根据最近一次任务与生成结果，自动总结要点并追加到项目记忆（需在「设置 / API」启用 AI）。</div>
+    </div>
+  </div>
+</div>
+
+<!-- Skill 生成 -->
+<div class="modal-overlay" id="skillModal">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-head">
+      <h3>生成 Skill（SKILL.md）</h3>
+      <button class="small ghost" data-close-modal>关闭</button>
+    </div>
+    <div class="modal-body skill-preview">
+      <div class="field-help" style="margin-bottom:8px;">
+        把"标准 / 流程 / 执行"类任务沉淀为可复用 Skill：含 <code>name / description</code> 头部 + 适用场景、SOP 步骤、思维原则、检查清单。可直接保存为 <code>SKILL.md</code> 复用。
+      </div>
+      <textarea id="skillPreview" placeholder="点击下方「本地生成」或「AI 生成」。"></textarea>
+      <div class="actions" style="margin-top:10px;">
+        <button class="primary" id="skillGenLocalBtn">本地生成</button>
+        <button id="skillGenAiBtn" style="display:none;">AI 生成（更完整）</button>
+        <button id="skillCopyBtn">复制</button>
+        <button id="skillDownloadBtn">下载 .md</button>
+      </div>
     </div>
   </div>
 </div>
@@ -787,6 +814,22 @@ function renderAll() {
 /* ============================================================
    匹配算法（纯本地）
    ============================================================ */
+// 任务类型识别：用于"按任务本质"加权推荐，并决定是否建议生成 Skill
+const TASK_TYPES = [
+  { id: "procedural", label: "流程 / 执行", isSkill: true,
+    keywords: ["流程","步骤","sop","标准","规范","执行","操作","清单","checklist","每次","重复","模板","上线","部署","审批","对账","录入","归档","例行","手册","指南","质检","交接","复用","固化","跑通","按流程"],
+    boostTags: ["流程","执行","质量","运营"] },
+  { id: "decision", label: "决策", keywords: ["决策","选择","要不要","是否","评估","对比","取舍","优先级","值不值","拍板"], boostTags: ["决策","战略","风控","资源分配"] },
+  { id: "analysis", label: "分析 / 诊断", keywords: ["分析","原因","为什么","诊断","数据","指标","归因","复盘","研究","拆解原因"], boostTags: ["分析","数据"] },
+  { id: "planning", label: "规划", keywords: ["计划","规划","路线","方案","项目","里程碑","排期","路线图","战略"], boostTags: ["规划","战略"] },
+  { id: "creative", label: "创作", keywords: ["写","文案","创意","设计","点子","命名","slogan","脚本","故事","内容"], boostTags: ["创新"] },
+  { id: "communication", label: "沟通 / 表达", keywords: ["汇报","邮件","沟通","谈判","说服","演讲","对接","回复","客户","老板","路演"], boostTags: ["沟通","协作","交付"] },
+];
+function detectTaskTypes(taskLower) {
+  return TASK_TYPES.filter((t) => t.keywords.some((k) => taskLower.includes(k.toLowerCase())));
+}
+let lastTaskTypes = [];
+
 function scoreModel(model, taskLower) {
   let score = 0;
   model.keywords.forEach((kw) => { if (taskLower.includes(kw.toLowerCase())) score += 2; });
@@ -796,7 +839,15 @@ function scoreModel(model, taskLower) {
 
 function matchModels(task) {
   const taskLower = (task || "").toLowerCase();
-  const scored = state.models.map((m) => ({ m, s: scoreModel(m, taskLower) }));
+  const types = detectTaskTypes(taskLower);
+  lastTaskTypes = types;
+  const boostTags = new Set(types.flatMap((t) => t.boostTags));
+  const scored = state.models.map((m) => {
+    let s = scoreModel(m, taskLower);
+    // 按任务类型加权：模型标签命中任务类型的相关标签则加分（让推荐贴合任务本质）
+    if (m.tags && m.tags.some((t) => boostTags.has(t))) s += 3;
+    return { m, s };
+  });
 
   let mental = scored.filter((x) => x.m.category === "mental_model" && x.s > 0)
                      .sort((a, b) => b.s - a.s).slice(0, 5);
@@ -827,8 +878,33 @@ function renderRecommendations(task) {
   selectedModelIds = new Set([...mental, ...frame].map((x) => x.m.id)); // 默认全选推荐项
 
   recommendations.innerHTML = "";
+  recommendations.appendChild(buildTypeBanner(lastTaskTypes));
   recommendations.appendChild(buildGroup("思维模型（怎么想）", mental));
   recommendations.appendChild(buildGroup("Prompt 框架（怎么写）", frame));
+}
+
+function buildTypeBanner(types) {
+  const wrap = document.createElement("div");
+  wrap.className = "type-banner";
+  if (!types.length) {
+    wrap.innerHTML = '<span class="hint">未识别到明显任务类型，已给出通用推荐。</span>';
+    return wrap;
+  }
+  const labels = types.map((t) => `<span class="type-chip">${esc(t.label)}</span>`).join("");
+  wrap.innerHTML = `<div>识别到任务类型：${labels}</div>`;
+  if (types.some((t) => t.isSkill)) {
+    const tip = document.createElement("div");
+    tip.className = "skill-tip";
+    tip.innerHTML = '这是<b>流程 / 执行</b>类任务，建议沉淀为可复用 Skill。';
+    const btn = document.createElement("button");
+    btn.className = "small primary"; btn.textContent = "生成 Skill (.md)";
+    btn.style.marginTop = "6px";
+    btn.addEventListener("click", openSkillModal);
+    tip.appendChild(document.createElement("br"));
+    tip.appendChild(btn);
+    wrap.appendChild(tip);
+  }
+  return wrap;
 }
 
 function buildGroup(title, items) {
@@ -1100,6 +1176,7 @@ function renderRecommendationsByIds(ids) {
   const frame = picked.filter((m) => m.category === "prompt_framework").map((m) => ({ m, s: 0 }));
   selectedModelIds = new Set(picked.map((m) => m.id));
   recommendations.innerHTML = "";
+  recommendations.appendChild(buildTypeBanner(lastTaskTypes));
   recommendations.appendChild(buildGroup("思维模型（怎么想）· AI 推荐", mental.length ? mental : [{ m: state.models.find((x) => x.category === "mental_model"), s: 0 }].filter((x) => x.m)));
   recommendations.appendChild(buildGroup("Prompt 框架（怎么写）· AI 推荐", frame.length ? frame : [{ m: state.models.find((x) => x.category === "prompt_framework"), s: 0 }].filter((x) => x.m)));
 }
@@ -1259,6 +1336,8 @@ function loadSettingsIntoForm() {
 function applyApiUI() {
   const c = state.apiConfig;
   $("aiGenBtn").style.display = (c.enabled && c.smartGen && c.apiKey) ? "inline-block" : "none";
+  const skillAi = (c.enabled && c.apiKey) ? "inline-block" : "none";
+  const el = $("skillGenAiBtn"); if (el) el.style.display = skillAi;
 }
 $("saveSettingsBtn").addEventListener("click", () => {
   state.apiConfig = {
@@ -1632,6 +1711,127 @@ $("aiMemoryBtn").addEventListener("click", async () => {
     showToast("AI 提炼失败：" + e.message);
   } finally {
     btn.disabled = false; btn.textContent = "AI 提炼并追加项目记忆";
+  }
+});
+
+/* ============================================================
+   Skill 生成（SKILL.md 格式）
+   ============================================================ */
+function slugify(s) {
+  return (s || "").trim().toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "").slice(0, 48) || "skill";
+}
+
+function generateSkillMarkdown() {
+  const c = getCompany(), p = getProject(), r = getRole();
+  const task = $("taskInput").value.trim();
+  const selected = state.models.filter((m) => selectedModelIds.has(m.id));
+  const mental = selected.filter((m) => m.category === "mental_model");
+  const frames = selected.filter((m) => m.category === "prompt_framework");
+  const types = (lastTaskTypes && lastTaskTypes.length ? lastTaskTypes : detectTaskTypes((task || "").toLowerCase()));
+  const typeLabels = types.map((t) => t.label).join("、") || "通用任务";
+  const titleText = task ? task.slice(0, 30) : "可复用工作流程";
+  const slug = slugify(task) || "workflow-skill";
+
+  const L = [];
+  L.push("---");
+  L.push("name: " + slug);
+  L.push("description: " + (task ? `当需要「${task.slice(0, 60)}」这类${typeLabels}任务时使用，按标准流程产出结构化交付物。` : "可复用的标准工作流程。"));
+  L.push("---");
+  L.push("");
+  L.push("# " + titleText);
+  L.push("");
+  L.push("## 适用场景（何时使用）");
+  L.push(`- 任务类型：${typeLabels}`);
+  L.push(`- 触发：当需要 ${task || "（描述该类任务）"} 时`);
+  L.push("");
+  L.push("## 角色设定");
+  L.push(r ? `你是${r.name}${r.description ? "，" + r.description : ""}${c ? "，就职于" + c.name : ""}。` : "你是该领域的资深专家。");
+  if (state.identity && state.identity.trim()) { L.push(""); L.push("关于使用者：" + state.identity.trim()); }
+  L.push("");
+  if (p && (p.background || p.memory)) {
+    L.push("## 背景与约束");
+    if (p.background) L.push(p.background.trim());
+    if (p.memory && p.memory.trim()) { L.push(""); L.push("项目记忆：" + p.memory.trim()); }
+    L.push("");
+  }
+  L.push("## 标准操作流程（SOP）");
+  L.push("> 以下为可复用步骤，首次执行后请按实际打磨。");
+  L.push("1. 明确目标与最终交付物，确认验收标准。");
+  L.push("2. 收集所需输入与资料（见「所需输入」）。");
+  if (frames.some((m) => m.id === "decompose" || m.id === "step_by_step")) L.push("3. 将任务拆解为有序子步骤，逐步推进。");
+  L.push((frames.some((m) => m.id === "decompose" || m.id === "step_by_step") ? "4" : "3") + ". 运用「思维原则」逐项分析与处理。");
+  L.push((frames.some((m) => m.id === "decompose" || m.id === "step_by_step") ? "5" : "4") + ". 按「输出要求」产出结构化结果，并用「检查清单」自检。");
+  L.push("");
+  L.push("## 所需输入");
+  const atts = currentAttachments().filter((a) => a.include !== false);
+  if (atts.length) atts.forEach((a) => L.push(`- 参考资料：${a.name}`));
+  L.push("- （列出执行该流程通常需要的输入 / 资料 / 参数）");
+  L.push("");
+  if (mental.length) {
+    L.push("## 思维原则（处理此类问题务必遵循）");
+    mental.forEach((m) => L.push(`- ${m.name}：${m.instruction}`));
+    L.push("");
+  }
+  L.push("## 表达与输出要求");
+  if (frames.length) frames.forEach((m) => L.push(`- ${m.instruction}`));
+  L.push("- 输出需结构化、可直接落地；关键假设与风险需标注。");
+  L.push("");
+  L.push("## 质量检查清单");
+  L.push("- [ ] 是否对齐目标与交付物、满足验收标准");
+  L.push("- [ ] 是否完整执行了 SOP 各步骤");
+  L.push("- [ ] 是否应用了上述思维原则");
+  L.push("- [ ] 输出是否结构化、可执行、无明显遗漏");
+  L.push("");
+  L.push("## 备注");
+  L.push("- 本 Skill 由「思维破壁机」生成，可持续迭代优化。");
+  return L.join("\n");
+}
+
+function openSkillModal() {
+  if (!$("skillPreview").value.trim()) $("skillPreview").value = generateSkillMarkdown();
+  openModal("skillModal");
+}
+$("skillBtn").addEventListener("click", openSkillModal);
+$("skillGenLocalBtn").addEventListener("click", () => {
+  $("skillPreview").value = generateSkillMarkdown();
+  showToast("已本地生成 Skill");
+});
+$("skillCopyBtn").addEventListener("click", async () => {
+  const text = $("skillPreview").value;
+  if (!text.trim()) { showToast("没有可复制的内容"); return; }
+  try { await navigator.clipboard.writeText(text); showToast("已复制 SKILL.md"); }
+  catch (e) { $("skillPreview").select(); document.execCommand("copy"); showToast("已复制 SKILL.md"); }
+});
+$("skillDownloadBtn").addEventListener("click", () => {
+  const text = $("skillPreview").value;
+  if (!text.trim()) { showToast("请先生成内容"); return; }
+  const blob = new Blob([text], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "SKILL.md"; a.click();
+  URL.revokeObjectURL(url);
+  showToast("已下载 SKILL.md");
+});
+$("skillGenAiBtn").addEventListener("click", async () => {
+  const cfg = state.apiConfig;
+  if (!(cfg.enabled && cfg.apiKey)) { showToast("请先在「设置 / API」启用 AI"); return; }
+  const task = $("taskInput").value.trim();
+  if (!task) { showToast("请先描述任务"); return; }
+  const btn = $("skillGenAiBtn");
+  btn.disabled = true; btn.textContent = "AI 生成中…";
+  try {
+    const scaffold = generateSkillMarkdown();
+    const sys = "你是资深的流程设计与提示工程专家。请把给定任务沉淀为一个高质量、可复用的 Agent Skill 文件，严格用 SKILL.md 格式：以 YAML frontmatter（name 用 kebab-case 英文短横线；description 一句话说明何时使用）开头，正文用 Markdown，包含：适用场景、角色设定、背景与约束、标准操作流程(SOP，给出该任务具体可执行步骤)、所需输入、思维原则、表达与输出要求、质量检查清单。只输出 SKILL.md 内容本身，不要额外解释。";
+    const usr = "【任务】\n" + task + "\n\n【可参考的脚手架（含上下文与已选思维模型/框架）】\n" + scaffold;
+    const result = await callAI([{ role: "system", content: sys }, { role: "user", content: usr }]);
+    if (result && result.trim()) { $("skillPreview").value = result.trim(); showToast("AI 已生成 Skill"); }
+    else showToast("AI 未返回内容");
+  } catch (e) {
+    showToast("AI 生成失败：" + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "AI 生成（更完整）";
   }
 });
 
