@@ -372,17 +372,24 @@
       <input type="file" id="importFile" accept="application/json,.json" style="display:none;" />
 
       <div class="divider"></div>
-      <h4>AI 接入（GPT 5.5，可选 · 预留）</h4>
+      <h4>AI 接入（OpenAI 兼容接口，可选）</h4>
+      <div class="field-help" style="margin-bottom:10px;">
+        浏览器直连第三方接口常被跨域(CORS)拦截。<b>推荐使用 OpenRouter</b>（支持浏览器直连，可调用 Kimi / GPT / Claude 等）：<br/>
+        · Base URL：<code>https://openrouter.ai/api/v1</code><br/>
+        · 模型名示例：<code>moonshotai/kimi-k2</code>、<code>openai/gpt-4o</code>、<code>anthropic/claude-3.5-sonnet</code><br/>
+        · 到 openrouter.ai 注册并生成 API Key 填到下方。<br/>
+        注意：Kimi/Moonshot 官方地址 <code>api.moonshot.cn</code> 不支持浏览器直连。
+      </div>
       <div class="field">
         <label><input type="checkbox" id="apiEnabled" style="width:auto; margin-right:6px;" />启用 AI（需填写 API Key）</label>
       </div>
       <div class="field">
         <label>Base URL</label>
-        <input id="apiBaseUrl" placeholder="https://api.openai.com/v1" />
+        <input id="apiBaseUrl" placeholder="https://openrouter.ai/api/v1" />
       </div>
       <div class="field">
         <label>模型名</label>
-        <input id="apiModel" placeholder="gpt-5.5" />
+        <input id="apiModel" placeholder="moonshotai/kimi-k2" />
       </div>
       <div class="field">
         <label>API Key（仅保存在本机 localStorage）</label>
@@ -1274,16 +1281,31 @@ $("openSettingsBtn").addEventListener("click", () => { loadSettingsIntoForm(); o
    ============================================================ */
 async function callAI(messages, { json = false } = {}) {
   const c = state.apiConfig;
-  const res = await fetch(c.baseUrl.replace(/\/$/, "") + "/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + c.apiKey },
-    body: JSON.stringify({
-      model: c.model,
-      messages,
-      ...(json ? { response_format: { type: "json_object" } } : {}),
-    }),
-  });
-  if (!res.ok) throw new Error("API " + res.status);
+  const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + c.apiKey };
+  // OpenRouter 推荐带上来源标识（也帮助通过其用量统计）
+  if (/openrouter\.ai/.test(c.baseUrl)) {
+    headers["HTTP-Referer"] = location.origin || "https://github.com";
+    headers["X-Title"] = "MindBreaker Prompt Generator";
+  }
+  let res;
+  try {
+    res = await fetch(c.baseUrl.replace(/\/$/, "") + "/chat/completions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: c.model,
+        messages,
+        ...(json ? { response_format: { type: "json_object" } } : {}),
+      }),
+    });
+  } catch (e) {
+    throw new Error("无法连接接口，多半是跨域(CORS)或网络被拦截。该接口可能不支持浏览器直连——建议改用支持 CORS 的网关，如 OpenRouter（Base URL：https://openrouter.ai/api/v1）。原始错误：" + e.message);
+  }
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.text()).slice(0, 400); } catch (e) {}
+    throw new Error("API " + res.status + (detail ? " - " + detail : ""));
+  }
   const data = await res.json();
   return data.choices?.[0]?.message?.content || "";
 }

@@ -58,7 +58,12 @@
 - 文档解析按需从 CDN 懒加载：[mammoth.js](https://github.com/mwilliamson/mammoth.js)（docx）、[SheetJS](https://github.com/SheetJS/sheetjs)（xlsx）、[JSZip](https://github.com/Stuk/jszip)（pptx）、[pdf.js](https://github.com/mozilla/pdf.js)（pdf）。
 - AI 调用走标准 OpenAI 兼容 `/chat/completions` 接口。
 
-> 注意：浏览器直接调用第三方 AI 接口可能受 CORS 限制。如遇拦截，可改用支持 CORS 的网关地址。
+> **关于 AI 直连与 CORS**：浏览器直接调用部分第三方接口（如 Kimi/Moonshot 官方 `api.moonshot.cn`）会被跨域(CORS)拦截，表现为 `Failed to fetch`。
+> 推荐使用支持浏览器直连的网关 **[OpenRouter](https://openrouter.ai/)**：
+> - Base URL：`https://openrouter.ai/api/v1`
+> - 模型名示例：`moonshotai/kimi-k2`、`openai/gpt-4o`、`anthropic/claude-3.5-sonnet`
+>
+> 不启用 AI 时，工具完全本地离线运行（生成 Prompt → 复制 → 粘贴到任意 AI）。
 
 ---
 
