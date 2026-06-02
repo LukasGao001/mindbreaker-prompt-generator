@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>思维破壁机 · Prompt 生成器</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel-2: #1f232c;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #d97757;
+    --accent-soft: rgba(217, 119, 87, 0.15);
+    --ok: #4caf82;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #14171d, #0f1115);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .company-pick { display: flex; align-items: center; gap: 8px; }
+  .company-pick label { color: var(--muted); font-size: 13px; }
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr 1fr;
+    gap: 16px;
+    padding: 16px;
+    align-items: start;
+  }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  select, input, textarea {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  select:focus, input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 90px; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1a1208; font-weight: 600; }
+  button.primary:hover { filter: brightness(1.08); }
+  button.ghost { background: transparent; }
+  button.small { padding: 5px 9px; font-size: 12px; }
+  .inline-add { margin-top: 8px; padding: 12px; background: var(--panel-2); border: 1px dashed var(--border); border-radius: 8px; }
+  .inline-add.hidden { display: none; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
+  .ctx-summary { font-size: 12px; color: var(--muted); background: var(--panel-2); border-radius: 8px; padding: 10px; margin-top: 10px; }
+  .ctx-summary b { color: var(--text); }
+  .rec-group { margin-bottom: 16px; }
+  .rec-group-title { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .model-card {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+  .model-card:hover { border-color: var(--accent); }
+  .model-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .model-card input { width: 16px; height: 16px; margin-top: 3px; flex: none; accent-color: var(--accent); }
+  .model-card .mc-body { flex: 1; }
+  .model-card .mc-name { font-size: 14px; font-weight: 600; }
+  .model-card .mc-name .score { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .model-card .mc-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  .preview-wrap textarea { min-height: 360px; font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .actions button { flex: none; }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ok);
+    color: #06150e;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .tag { display: inline-block; font-size: 10px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+  .del-link { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+  .del-link:hover { color: var(--accent); }
+  .history-item { font-size: 12px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+  .history-item:hover { border-color: var(--accent); }
+  .history-item .ht { color: var(--text); }
+  .history-item .hm { color: var(--muted); margin-top: 2px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .toolbar .sep { width: 1px; height: 20px; background: var(--border); }
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    display: none; align-items: flex-start; justify-content: center;
+    z-index: 50; padding: 40px 16px; overflow-y: auto;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); width: 100%; max-width: 640px;
+    max-height: 86vh; display: flex; flex-direction: column;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 18px; border-bottom: 1px solid var(--border);
+  }
+  .modal-head h3 { margin: 0; font-size: 16px; }
+  .modal-body { padding: 16px 18px; overflow-y: auto; }
+  .modal-body h4 { font-size: 13px; color: var(--muted); margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .me-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 7px;
+  }
+  .me-row .me-info { flex: 1; }
+  .me-row .me-name { font-size: 14px; font-weight: 600; }
+  .me-row .me-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .me-row .me-cat { font-size: 10px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+  .me-actions { display: flex; gap: 6px; }
+  .field-help { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .danger { color: #e0685a; border-color: #5a2a26; }
+  .danger:hover { border-color: #e0685a; }
+  .att-area { border: 1px dashed var(--border); border-radius: 8px; padding: 14px 10px; text-align: center; cursor: pointer; color: var(--muted); font-size: 12px; line-height: 1.7; }
+  .att-area:hover, .att-area.drag { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+  .att-item { border: 1px solid var(--border); border-radius: 8px; padding: 8px 9px; margin-top: 7px; }
+  .att-item .att-top { display: flex; align-items: center; gap: 8px; }
+  .att-item .att-name { flex: 1; font-size: 12px; font-weight: 600; word-break: break-all; }
+  .att-item .att-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .att-item textarea { min-height: 36px; font-size: 12px; margin-top: 6px; }
+  .att-badge { font-size: 9px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border); white-space: nowrap; color: var(--muted); }
+  .att-badge.ok { color: var(--ok); border-color: #2a4a3a; }
+  .att-badge.warn { color: #d8a657; border-color: #5a4a26; }
+  .att-badge.img { color: #7aa2f7; border-color: #2a3a5a; }
+  .att-badge.err { color: #e0685a; border-color: #5a2a26; }
+  .att-cb { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+  .att-cb input { width: 14px; height: 14px; accent-color: var(--accent); }
+  .mem-textarea { min-height: 110px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>思维破壁机</h1>
+    <div class="sub">用思维模型打破认知壁垒 · 把任务炼成高质量 Prompt</div>
+  </div>
+  <div class="toolbar">
+    <label class="hint">公司</label>
+    <select id="companySelect" style="width:auto; min-width:160px;"></select>
+    <button class="small ghost" id="addCompanyBtn" title="新增公司">+ 公司</button>
+    <span class="sep"></span>
+    <button class="small ghost" id="openMemoryBtn">记忆 / 身份</button>
+    <button class="small ghost" id="openModelsBtn">模型库</button>
+    <button class="small ghost" id="openSettingsBtn">设置 / API</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- 左栏：项目 + 角色 -->
+  <div class="panel" id="contextPanel">
+    <h2>项目 / 角色</h2>
+
+    <div class="field">
+      <label>项目</label>
+      <select id="projectSelect"></select>
+      <div style="margin-top:6px;">
+        <button class="small ghost" id="toggleAddProject">+ 新增项目</button>
+        <button class="small del-link" id="delProjectBtn">删除当前项目</button>
+      </div>
+      <div class="inline-add hidden" id="addProjectForm">
+        <div class="field"><label>项目名称</label><input id="newProjectName" placeholder="例如：新能源出口尽调" /></div>
+        <div class="field"><label>项目背景介绍</label><textarea id="newProjectBg" placeholder="项目目标、客户、阶段、关键信息……"></textarea></div>
+        <div class="row">
+          <button class="primary small" id="saveProjectBtn">保存项目</button>
+          <button class="small ghost" id="cancelProjectBtn">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label>我在该项目中的角色</label>
+      <select id="roleSelect"></select>
+      <div style="margin-top:6px;">
+        <button class="small ghost" id="toggleAddRole">+ 新增角色</button>
+        <button class="small del-link" id="delRoleBtn">删除当前角色</button>
+      </div>
+      <div class="inline-add hidden" id="addRoleForm">
+        <div class="field"><label>角色名称</label><input id="newRoleName" placeholder="例如：项目负责人 / 财务分析师" /></div>
+        <div class="field"><label>角色描述（职责、专长）</label><textarea id="newRoleDesc" placeholder="你的职责、视角、专业背景……"></textarea></div>
+        <div class="row">
+          <button class="primary small" id="saveRoleBtn">保存角色</button>
+          <button class="small ghost" id="cancelRoleBtn">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="field">
+      <label>补充信息源（附件 · 按项目保存）</label>
+      <div class="att-area" id="attDrop">点击或拖拽添加文件<br/>Word / Excel / CSV / PPT / PDF / JPG / PNG</div>
+      <input type="file" id="attInput" multiple accept=".doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.pdf,.jpg,.jpeg,.png,.txt,.md" style="display:none;" />
+      <div id="attList"></div>
+    </div>
+
+    <div class="ctx-summary" id="ctxSummary"></div>
+
+    <div class="divider"></div>
+    <details>
+      <summary>生成历史（本地）</summary>
+      <div id="historyList" style="margin-top:10px;"></div>
+    </details>
+  </div>
+
+  <!-- 中栏：任务 + 推荐 -->
+  <div class="panel">
+    <h2>任务 & 模型匹配</h2>
+    <div class="field">
+      <label>描述你需要做的事情 / 任务</label>
+      <textarea id="taskInput" placeholder="例如：帮我评估是否进入东南亚市场，并给出风险和优先级建议"></textarea>
+    </div>
+    <button class="primary" id="matchBtn">匹配模型</button>
+    <div class="divider"></div>
+    <div id="recommendations">
+      <div class="empty">输入任务后点击「匹配模型」，会在这里推荐思维模型与 Prompt 框架。</div>
+    </div>
+  </div>
+
+  <!-- 右栏：预览 + 生成 -->
+  <div class="panel preview-wrap">
+    <h2>Prompt 预览（可编辑）</h2>
+    <textarea id="promptPreview" placeholder="点击下方 Generate 生成结构化 Prompt，可在此微调后复制。"></textarea>
+    <div class="actions">
+      <button class="primary" id="generateBtn">Generate</button>
+      <button id="aiGenBtn" style="display:none;">AI 直接生成结果</button>
+      <button id="copyBtn">复制</button>
+      <button class="ghost" id="clearBtn">清空</button>
+    </div>
+    <div class="hint" style="margin-top:8px;">生成后会自动包含：角色 + 公司 + 项目背景 + 任务 + 选中的思维模型 + 表达/输出要求。</div>
+  </div>
+</div>
+
+<!-- 模型库编辑器 -->
+<div class="modal-overlay" id="modelModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>模型库编辑</h3>
+      <button class="small ghost" data-close-modal>关闭</button>
+    </div>
+    <div class="modal-body">
+      <h4>当前模型（点击编辑 / 删除）</h4>
+      <div id="modelEditList"></div>
+
+      <div class="divider"></div>
+      <h4 id="modelFormTitle">新增模型</h4>
+      <div class="field">
+        <label>名称</label>
+        <input id="mfName" placeholder="例如：第二序思考" />
+      </div>
+      <div class="field">
+        <label>类别</label>
+        <select id="mfCategory">
+          <option value="mental_model">思维模型（怎么想）</option>
+          <option value="prompt_framework">Prompt 框架（怎么写）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>简介（一句话）</label>
+        <input id="mfDesc" placeholder="给用户看的简短说明" />
+      </div>
+      <div class="field">
+        <label>关键词（用于匹配，逗号分隔）</label>
+        <input id="mfKeywords" placeholder="风险, 失败, 复盘" />
+        <div class="field-help">中文/英文均可，任务里包含这些词即加分。</div>
+      </div>
+      <div class="field">
+        <label>场景标签（逗号分隔，可选）</label>
+        <input id="mfTags" placeholder="决策, 风控" />
+      </div>
+      <div class="field">
+        <label>注入指令（写进 Prompt 的那句话）</label>
+        <textarea id="mfInstruction" placeholder="请运用……"></textarea>
+      </div>
+      <div class="row">
+        <button class="primary small" id="mfSaveBtn">保存模型</button>
+        <button class="small ghost" id="mfResetFormBtn">清空表单</button>
+      </div>
+
+      <div class="divider"></div>
+      <button class="small danger" id="resetModelsBtn">恢复默认模型库（清除自定义改动）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置 / API -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>设置 / API</h3>
+      <button class="small ghost" data-close-modal>关闭</button>
+    </div>
+    <div class="modal-body">
+      <h4>数据迁移（换电脑时用）</h4>
+      <div class="row">
+        <button class="small" id="exportBtn">导出配置 (JSON)</button>
+        <button class="small" id="importBtn">导入配置</button>
+      </div>
+      <div class="field-help">导出包含公司 / 项目 / 角色 / 模型库 / 历史 / API 设置。导入会覆盖当前全部数据。</div>
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none;" />
+
+      <div class="divider"></div>
+      <h4>AI 接入（GPT 5.5，可选 · 预留）</h4>
+      <div class="field">
+        <label><input type="checkbox" id="apiEnabled" style="width:auto; margin-right:6px;" />启用 AI（需填写 API Key）</label>
+      </div>
+      <div class="field">
+        <label>Base URL</label>
+        <input id="apiBaseUrl" placeholder="https://api.openai.com/v1" />
+      </div>
+      <div class="field">
+        <label>模型名</label>
+        <input id="apiModel" placeholder="gpt-5.5" />
+      </div>
+      <div class="field">
+        <label>API Key（仅保存在本机 localStorage）</label>
+        <input id="apiKey" type="password" placeholder="sk-..." />
+      </div>
+      <div class="field">
+        <label><input type="checkbox" id="apiSmartMatch" style="width:auto; margin-right:6px;" />用 AI 智能匹配模型（替代本地关键词匹配）</label>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" id="apiSmartGen" style="width:auto; margin-right:6px;" />显示「AI 直接生成结果」按钮（直接产出交付物）</label>
+      </div>
+      <button class="primary small" id="saveSettingsBtn">保存设置</button>
+      <div class="field-help" style="margin-top:8px;">说明：Key 只存本机、不上传任何第三方。未启用 AI 时，工具完全本地离线运行。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 记忆 / 身份 -->
+<div class="modal-overlay" id="memoryModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>记忆 / 身份</h3>
+      <button class="small ghost" data-close-modal>关闭</button>
+    </div>
+    <div class="modal-body">
+      <h4>全局身份（所有项目始终生效）</h4>
+      <div class="field">
+        <textarea id="memIdentity" class="mem-textarea" placeholder="例如：我是 Lukas，AF8/Yunlab.Tech 的创始人，关注新能源出海与一级市场投资；偏好结论先行、数据驱动、中文输出；不喜欢空泛建议。"></textarea>
+        <div class="field-help">这里写你长期不变的身份、专业、偏好、沟通风格——会被注入到每一个生成的 Prompt。</div>
+      </div>
+
+      <div class="divider"></div>
+      <h4 id="memProjTitle">项目记忆（持续沉淀）</h4>
+      <div class="field">
+        <textarea id="memProject" class="mem-textarea" placeholder="该项目的关键背景、已达成的结论、待办、踩过的坑、对方偏好……随做随记，会被注入到本项目的 Prompt。"></textarea>
+        <div class="field-help" id="memProjHelp">当前项目的专属记忆。切换项目会显示对应记忆。</div>
+      </div>
+
+      <div class="row">
+        <button class="primary small" id="saveMemoryBtn">保存记忆</button>
+        <button class="small" id="aiMemoryBtn">AI 提炼并追加项目记忆</button>
+      </div>
+      <div class="field-help" style="margin-top:8px;">AI 提炼：根据最近一次任务与生成结果，自动总结要点并追加到项目记忆（需在「设置 / API」启用 AI）。</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">已复制到剪贴板</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   模型库：思维模型（怎么想） + Prompt 框架（怎么写）
+   每条：{ id, name, category, desc, keywords[], tags[], instruction }
+   ============================================================ */
+const DEFAULT_MODELS = [
+  // ---------- 思维模型 mental_model ----------
+  { id: "inversion", name: "逆向思维", category: "mental_model",
+    desc: "反过来想：先思考怎样会失败、要避免什么。",
+    keywords: ["风险","失败","避免","问题","陷阱","坑","错误","排查","复盘","debug","隐患"],
+    tags: ["决策","复盘","风控"],
+    instruction: "请运用逆向思维：先列出「怎样一定会失败 / 最坏情况」，再反推应避免和必须做对的关键点。" },
+  { id: "first_principles", name: "第一性原理", category: "mental_model",
+    desc: "回到本质，从最基本的事实重新推导，而非类比。",
+    keywords: ["本质","根本","从零","重新设计","创新","假设","为什么","可行性"],
+    tags: ["创新","战略","分析"],
+    instruction: "请运用第一性原理：剥离行业惯例与类比，从最基本的事实和约束出发重新推导结论。" },
+  { id: "margin_of_safety", name: "安全边际", category: "mental_model",
+    desc: "给不确定性和错误留出缓冲余地。",
+    keywords: ["风险","投资","估值","留余地","不确定","买入","预算","保守","缓冲"],
+    tags: ["风控","投资","财务"],
+    instruction: "请在结论中保留安全边际：明确关键假设、给出保守区间和出错时的缓冲方案。" },
+  { id: "opportunity_cost", name: "机会成本", category: "mental_model",
+    desc: "选择一项即放弃次优项，用被放弃者衡量代价。",
+    keywords: ["选择","取舍","优先级","资源","决策","投入","对比","值不值"],
+    tags: ["决策","资源分配"],
+    instruction: "请用机会成本视角评估：选这个方案放弃了什么次优选项，代价是否值得。" },
+  { id: "second_order", name: "二阶/多阶思维", category: "mental_model",
+    desc: "不止看直接结果，推演后续连锁反应。",
+    keywords: ["后果","长期","连锁","影响","副作用","预判","后续","然后呢"],
+    tags: ["决策","战略"],
+    instruction: "请做二阶思维：在直接结果之外，推演「然后呢」的二阶、三阶连锁后果与副作用。" },
+  { id: "circle_of_competence", name: "能力圈", category: "mental_model",
+    desc: "清楚自己懂与不懂的边界，避免越界冒险。",
+    keywords: ["擅长","专业","边界","是否该做","熟悉","把握"],
+    tags: ["决策","自我评估"],
+    instruction: "请标注哪些部分在我的能力圈内、哪些不确定需外部验证或专家介入。" },
+  { id: "expected_value", name: "概率与期望值", category: "mental_model",
+    desc: "用「结果×概率」加权评估，而非只看单一结果。",
+    keywords: ["概率","期望","赌注","收益","不确定","押注","胜率","回报"],
+    tags: ["决策","投资","风控"],
+    instruction: "请用期望值思维：列出主要结果、各自概率与影响，加权比较方案优劣。" },
+  { id: "bayesian", name: "贝叶斯更新", category: "mental_model",
+    desc: "拿到新证据后，按比例更新原有判断。",
+    keywords: ["更新","新信息","修正","判断","证据","概率","调整"],
+    tags: ["分析","决策"],
+    instruction: "请用贝叶斯思路：先给出先验判断，再说明哪些新证据会如何提高/降低该判断的可信度。" },
+  { id: "pareto", name: "80-20 法则", category: "mental_model",
+    desc: "找出贡献 80% 结果的 20% 关键因素。",
+    keywords: ["重点","聚焦","优先","关键","精力","效率","资源分配","抓大放小"],
+    tags: ["效率","优先级"],
+    instruction: "请用 80/20 法则：识别能带来大部分成效的少数关键点，并据此排出优先级。" },
+  { id: "constraints", name: "约束理论 / 瓶颈", category: "mental_model",
+    desc: "系统产出由最弱环节决定，先攻瓶颈。",
+    keywords: ["瓶颈","卡点","效率","流程","产能","堵塞","优化流程","提速"],
+    tags: ["流程","运营","效率"],
+    instruction: "请用约束理论：先定位限制整体产出的瓶颈环节，再集中资源突破它。" },
+  { id: "compounding", name: "复利效应", category: "mental_model",
+    desc: "微小持续的积累会随时间指数放大。",
+    keywords: ["长期","积累","增长","习惯","持续","雪球","沉淀"],
+    tags: ["成长","战略","投资"],
+    instruction: "请用复利视角：评估哪些动作能随时间累积放大价值，优先布局可复利的选择。" },
+  { id: "incentives", name: "激励机制", category: "mental_model",
+    desc: "「看激励，知行为」——人会朝被奖励的方向走。",
+    keywords: ["激励","kpi","考核","动机","奖励","团队","行为","绩效","机制"],
+    tags: ["管理","组织"],
+    instruction: "请分析相关方的激励：现有激励会驱动出什么行为，是否与目标一致，如何调整。" },
+  { id: "regression_mean", name: "回归均值", category: "mental_model",
+    desc: "极端表现往往会向平均水平回落。",
+    keywords: ["数据","异常","极端","波动","趋势","平均","偶然"],
+    tags: ["分析","数据"],
+    instruction: "请警惕回归均值：判断异常高/低的数据是真实信号还是会自然回落的波动。" },
+  { id: "occam", name: "奥卡姆剃刀", category: "mental_model",
+    desc: "如无必要，勿增假设，优先最简解释。",
+    keywords: ["简化","复杂","解释","假设","方案","最简","原因"],
+    tags: ["分析","决策"],
+    instruction: "请用奥卡姆剃刀：在能解释现象的前提下，优先采用假设最少、最简洁的方案。" },
+  { id: "hanlon", name: "汉隆剃刀", category: "mental_model",
+    desc: "能用疏忽解释的，别轻易归因于恶意。",
+    keywords: ["误会","冲突","沟通","归因","对方","恶意","矛盾","对接"],
+    tags: ["沟通","协作"],
+    instruction: "请用汉隆剃刀分析人际/协作问题：优先考虑信息差、流程疏忽等中性原因，而非恶意。" },
+  { id: "checklist", name: "检查清单", category: "mental_model",
+    desc: "用清单防止关键步骤遗漏。",
+    keywords: ["流程","遗漏","质量","核对","标准","上线","review","检查","交付"],
+    tags: ["执行","质量"],
+    instruction: "请输出一份可勾选的检查清单，覆盖关键步骤与易遗漏项。" },
+  { id: "systems", name: "系统思维 / 反馈回路", category: "mental_model",
+    desc: "看整体关联与正负反馈，而非孤立环节。",
+    keywords: ["系统","反馈","循环","整体","关联","飞轮","联动"],
+    tags: ["战略","分析"],
+    instruction: "请用系统思维：画出关键要素之间的反馈回路（增强/平衡），找出杠杆点。" },
+  { id: "critical_mass", name: "临界质量", category: "mental_model",
+    desc: "越过某个临界点后增长会自我加速。",
+    keywords: ["增长","启动","冷启动","规模","引爆","临界","起量"],
+    tags: ["增长","产品"],
+    instruction: "请分析达到自我增长所需的临界点是什么，以及如何最快越过它。" },
+  { id: "network_effects", name: "网络效应", category: "mental_model",
+    desc: "用户越多，产品对每个人越有价值。",
+    keywords: ["平台","用户","网络","生态","双边","社区"],
+    tags: ["增长","产品","商业"],
+    instruction: "请评估网络效应：价值是否随用户增加而放大，如何启动并强化它。" },
+  { id: "moat", name: "护城河 / 竞争优势", category: "mental_model",
+    desc: "可持续的差异化壁垒。",
+    keywords: ["竞争","壁垒","优势","差异化","护城河","对手","竞品"],
+    tags: ["战略","商业"],
+    instruction: "请分析可持续的竞争壁垒（成本/网络/品牌/转换成本等）及其牢固程度。" },
+  { id: "sunk_cost", name: "沉没成本", category: "mental_model",
+    desc: "已花费且不可收回的成本不应影响当下决策。",
+    keywords: ["已投入","放弃","继续","止损","纠结","坚持","要不要停"],
+    tags: ["决策","风控"],
+    instruction: "请忽略沉没成本：仅基于未来的成本与收益判断是否继续、止损或转向。" },
+  { id: "fermi", name: "费米估算", category: "mental_model",
+    desc: "用合理拆解做数量级估算。",
+    keywords: ["估算","市场规模","数量级","大概","测算","tam","多少"],
+    tags: ["分析","商业"],
+    instruction: "请用费米估算：把问题拆成可估的子项，逐步推算出合理的数量级结果并标注假设。" },
+  { id: "correlation_causation", name: "相关 ≠ 因果", category: "mental_model",
+    desc: "区分相关性与真正的因果关系。",
+    keywords: ["数据","原因","因果","相关","分析","归因","指标","为什么涨"],
+    tags: ["数据","分析"],
+    instruction: "请区分相关与因果：对每个结论说明是相关还是有因果证据，警惕混淆变量。" },
+  { id: "thought_experiment", name: "思想实验 / 反事实", category: "mental_model",
+    desc: "用假设情景推演，检验逻辑。",
+    keywords: ["假设","如果","情景","推演","设想","模拟","会怎样"],
+    tags: ["分析","战略"],
+    instruction: "请做思想实验：构造若干假设情景（含反事实「如果不这样」）来压力测试结论。" },
+
+  // ---------- Prompt 框架 prompt_framework ----------
+  { id: "role_play", name: "角色扮演", category: "prompt_framework",
+    desc: "给 AI 设定专家身份以提升专业度。",
+    keywords: ["专家","角色","视角","身份","专业","顾问"],
+    tags: ["通用"],
+    instruction: "请以相关领域资深专家的身份作答，体现该角色的专业判断与术语。" },
+  { id: "cot", name: "思维链（CoT）", category: "prompt_framework",
+    desc: "要求先逐步推理再给结论。",
+    keywords: ["推理","分析","复杂","逻辑","思考","为什么","判断"],
+    tags: ["分析","推理"],
+    instruction: "请先分步展示推理过程，再给出最终结论，不要直接跳到答案。" },
+  { id: "step_by_step", name: "分步拆解", category: "prompt_framework",
+    desc: "把任务拆成清晰的执行步骤。",
+    keywords: ["步骤","拆解","流程","计划","执行","分解","怎么做","方案"],
+    tags: ["执行","规划"],
+    instruction: "请把交付物拆解为清晰、可执行的步骤，每步说明目的与产出。" },
+  { id: "few_shot", name: "少样本示例", category: "prompt_framework",
+    desc: "给出示例让输出贴合期望风格/格式。",
+    keywords: ["示例","格式","模仿","例子","风格","参照","样式"],
+    tags: ["通用"],
+    instruction: "若我提供了示例，请严格模仿其结构与风格；若未提供，请先给出一个样例再展开。" },
+  { id: "output_format", name: "明确输出格式", category: "prompt_framework",
+    desc: "规定输出的结构（表格/清单/分节）。",
+    keywords: ["格式","表格","清单","结构","输出","文档","报告","邮件"],
+    tags: ["通用","交付"],
+    instruction: "请以结构化格式输出（按需使用标题、表格、要点清单），便于直接使用。" },
+  { id: "self_critique", name: "自我批判迭代", category: "prompt_framework",
+    desc: "让 AI 先产出再自查并改进。",
+    keywords: ["优化","改进","审查","质量","迭代","检查","完善","打磨"],
+    tags: ["质量"],
+    instruction: "请在给出初稿后自我审查找出薄弱点，并输出改进后的最终版本。" },
+  { id: "constraints_prompt", name: "约束边界", category: "prompt_framework",
+    desc: "明确字数、范围、必须/禁止项。",
+    keywords: ["限制","字数","范围","不要","必须","要求","边界","简洁"],
+    tags: ["通用"],
+    instruction: "请严格遵守给定约束（范围、篇幅、必须包含与禁止事项），不偏题、不冗余。" },
+  { id: "compare_options", name: "对比多方案", category: "prompt_framework",
+    desc: "给出多个方案并比较优劣后推荐。",
+    keywords: ["方案","对比","选择","优劣","比较","选项","评估","哪个好"],
+    tags: ["决策"],
+    instruction: "请提供 2-3 个可选方案，列出各自优劣与适用条件，并给出带理由的推荐。" },
+  { id: "audience", name: "受众设定", category: "prompt_framework",
+    desc: "面向特定读者调整语气与深度。",
+    keywords: ["受众","读者","客户","老板","用户","面向","通俗","汇报"],
+    tags: ["沟通","交付"],
+    instruction: "请面向指定受众调整深度与语气（如对高管简明扼要、对技术读者更深入）。" },
+  { id: "structured_input", name: "结构化处理长材料", category: "prompt_framework",
+    desc: "对长文/资料先结构化再处理。",
+    keywords: ["资料","长文","整理","材料","文档","内容","总结","提炼"],
+    tags: ["分析","整理"],
+    instruction: "若涉及长材料，请先提炼关键信息形成结构化要点，再基于其完成任务。" },
+  { id: "decompose", name: "拆分子任务", category: "prompt_framework",
+    desc: "复杂大任务先拆成可管理的子任务。",
+    keywords: ["复杂","大","多步","项目","系统","庞大","工程"],
+    tags: ["规划"],
+    instruction: "请先把这个复杂任务拆成若干子任务并排序，再逐个推进。" },
+  { id: "cite_evidence", name: "要求依据与严谨", category: "prompt_framework",
+    desc: "要求标注依据、区分事实与推测。",
+    keywords: ["依据","来源","引用","事实","准确","数据","严谨","核实"],
+    tags: ["分析","质量"],
+    instruction: "请为关键结论标注依据，明确区分「已知事实」「合理推断」「需进一步核实」。" },
+];
+
+/* ============================================================
+   存储层：localStorage
+   ============================================================ */
+const STORE_KEY = "claudePromptGen.v1";
+const DEFAULT_STATE = {
+  companies: [
+    { id: "af8", name: "AF8" },
+    { id: "yunlab", name: "Yunlab.Tech" },
+  ],
+  projects: [],
+  roles: [],
+  history: [],
+  models: [],
+  identity: "",
+  attachments: [],
+  apiConfig: { enabled: false, baseUrl: "https://api.openai.com/v1", model: "gpt-5.5", apiKey: "", smartMatch: false, smartGen: false },
+  selected: { companyId: "af8", projectId: "", roleId: "" },
+};
+
+let state = loadState();
+
+function loadState() {
+  let s;
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    s = raw ? Object.assign(structuredClone(DEFAULT_STATE), JSON.parse(raw)) : structuredClone(DEFAULT_STATE);
+  } catch (e) {
+    s = structuredClone(DEFAULT_STATE);
+  }
+  // 模型库首次或为空时以默认库播种；apiConfig 补齐缺省字段
+  if (!Array.isArray(s.models) || s.models.length === 0) s.models = structuredClone(DEFAULT_MODELS);
+  s.apiConfig = Object.assign(structuredClone(DEFAULT_STATE.apiConfig), s.apiConfig || {});
+  return s;
+}
+function saveState() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+}
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
+/* ============================================================
+   DOM 引用
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+const companySelect = $("companySelect");
+const projectSelect = $("projectSelect");
+const roleSelect = $("roleSelect");
+const ctxSummary = $("ctxSummary");
+const recommendations = $("recommendations");
+const promptPreview = $("promptPreview");
+const historyList = $("historyList");
+
+let selectedModelIds = new Set();
+
+/* ============================================================
+   渲染：下拉框 & 上下文摘要
+   ============================================================ */
+function renderCompanies() {
+  companySelect.innerHTML = "";
+  state.companies.forEach((c) => {
+    const o = document.createElement("option");
+    o.value = c.id; o.textContent = c.name;
+    companySelect.appendChild(o);
+  });
+  if (!state.companies.find((c) => c.id === state.selected.companyId)) {
+    state.selected.companyId = state.companies[0] ? state.companies[0].id : "";
+  }
+  companySelect.value = state.selected.companyId;
+}
+
+function renderProjects() {
+  const list = state.projects.filter((p) => p.companyId === state.selected.companyId);
+  projectSelect.innerHTML = "";
+  if (list.length === 0) {
+    const o = document.createElement("option");
+    o.value = ""; o.textContent = "（暂无项目，点 + 新增）";
+    projectSelect.appendChild(o);
+    state.selected.projectId = "";
+  } else {
+    list.forEach((p) => {
+      const o = document.createElement("option");
+      o.value = p.id; o.textContent = p.name;
+      projectSelect.appendChild(o);
+    });
+    if (!list.find((p) => p.id === state.selected.projectId)) {
+      state.selected.projectId = list[0].id;
+    }
+    projectSelect.value = state.selected.projectId;
+  }
+}
+
+function renderRoles() {
+  const list = state.roles.filter((r) => r.projectId === state.selected.projectId);
+  roleSelect.innerHTML = "";
+  if (list.length === 0) {
+    const o = document.createElement("option");
+    o.value = ""; o.textContent = "（暂无角色，点 + 新增）";
+    roleSelect.appendChild(o);
+    state.selected.roleId = "";
+  } else {
+    list.forEach((r) => {
+      const o = document.createElement("option");
+      o.value = r.id; o.textContent = r.name;
+      roleSelect.appendChild(o);
+    });
+    if (!list.find((r) => r.id === state.selected.roleId)) {
+      state.selected.roleId = list[0].id;
+    }
+    roleSelect.value = state.selected.roleId;
+  }
+}
+
+function getCompany() { return state.companies.find((c) => c.id === state.selected.companyId); }
+function getProject() { return state.projects.find((p) => p.id === state.selected.projectId); }
+function getRole() { return state.roles.find((r) => r.id === state.selected.roleId); }
+
+function renderSummary() {
+  const c = getCompany(), p = getProject(), r = getRole();
+  ctxSummary.innerHTML =
+    `<div>公司：<b>${c ? esc(c.name) : "—"}</b></div>` +
+    `<div>项目：<b>${p ? esc(p.name) : "—"}</b></div>` +
+    `<div>角色：<b>${r ? esc(r.name) : "—"}</b></div>`;
+}
+
+function renderHistory() {
+  historyList.innerHTML = "";
+  if (state.history.length === 0) {
+    historyList.innerHTML = '<div class="empty">暂无历史。</div>';
+    return;
+  }
+  state.history.slice().reverse().forEach((h) => {
+    const div = document.createElement("div");
+    div.className = "history-item";
+    const date = new Date(h.ts);
+    div.innerHTML = `<div class="ht">${esc((h.task || "").slice(0, 40))}</div>` +
+      `<div class="hm">${date.toLocaleString("zh-CN")} · ${h.modelIds.length} 个模型</div>`;
+    div.addEventListener("click", () => {
+      promptPreview.value = h.prompt;
+      showToast("已载入历史 Prompt");
+    });
+    historyList.appendChild(div);
+  });
+}
+
+function renderAll() {
+  renderCompanies();
+  renderProjects();
+  renderRoles();
+  renderSummary();
+  renderHistory();
+  renderAttachments();
+}
+
+/* ============================================================
+   匹配算法（纯本地）
+   ============================================================ */
+function scoreModel(model, taskLower) {
+  let score = 0;
+  model.keywords.forEach((kw) => { if (taskLower.includes(kw.toLowerCase())) score += 2; });
+  (model.tags || []).forEach((t) => { if (taskLower.includes(t.toLowerCase())) score += 1; });
+  return score;
+}
+
+function matchModels(task) {
+  const taskLower = (task || "").toLowerCase();
+  const scored = state.models.map((m) => ({ m, s: scoreModel(m, taskLower) }));
+
+  let mental = scored.filter((x) => x.m.category === "mental_model" && x.s > 0)
+                     .sort((a, b) => b.s - a.s).slice(0, 5);
+  let frame = scored.filter((x) => x.m.category === "prompt_framework" && x.s > 0)
+                    .sort((a, b) => b.s - a.s).slice(0, 4);
+
+  // 兜底通用推荐（若默认模型已被删，按类别取前几个）
+  const byId = (id) => state.models.find((x) => x.id === id);
+  if (mental.length === 0) {
+    mental = ["first_principles", "second_order", "occam"]
+      .map((id) => byId(id)).filter(Boolean).map((m) => ({ m, s: 0 }));
+    if (mental.length === 0) {
+      mental = state.models.filter((m) => m.category === "mental_model").slice(0, 3).map((m) => ({ m, s: 0 }));
+    }
+  }
+  if (frame.length === 0) {
+    frame = ["output_format", "step_by_step", "role_play"]
+      .map((id) => byId(id)).filter(Boolean).map((m) => ({ m, s: 0 }));
+    if (frame.length === 0) {
+      frame = state.models.filter((m) => m.category === "prompt_framework").slice(0, 3).map((m) => ({ m, s: 0 }));
+    }
+  }
+  return { mental, frame };
+}
+
+function renderRecommendations(task) {
+  const { mental, frame } = matchModels(task);
+  selectedModelIds = new Set([...mental, ...frame].map((x) => x.m.id)); // 默认全选推荐项
+
+  recommendations.innerHTML = "";
+  recommendations.appendChild(buildGroup("思维模型（怎么想）", mental));
+  recommendations.appendChild(buildGroup("Prompt 框架（怎么写）", frame));
+}
+
+function buildGroup(title, items) {
+  const wrap = document.createElement("div");
+  wrap.className = "rec-group";
+  const t = document.createElement("div");
+  t.className = "rec-group-title";
+  t.textContent = title;
+  wrap.appendChild(t);
+
+  items.forEach(({ m, s }) => {
+    const card = document.createElement("label");
+    card.className = "model-card selected";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = true;
+    cb.addEventListener("change", () => {
+      if (cb.checked) { selectedModelIds.add(m.id); card.classList.add("selected"); }
+      else { selectedModelIds.delete(m.id); card.classList.remove("selected"); }
+    });
+    const body = document.createElement("div");
+    body.className = "mc-body";
+    const scoreLabel = s > 0 ? `<span class="score">匹配度 ${s}</span>` : `<span class="score">通用推荐</span>`;
+    body.innerHTML = `<div class="mc-name">${esc(m.name)}${scoreLabel}</div>` +
+      `<div class="mc-desc">${esc(m.desc)}</div>`;
+    card.appendChild(cb);
+    card.appendChild(body);
+    wrap.appendChild(card);
+  });
+  return wrap;
+}
+
+/* ============================================================
+   生成 Prompt
+   ============================================================ */
+function generatePrompt() {
+  const c = getCompany(), p = getProject(), r = getRole();
+  const task = $("taskInput").value.trim();
+
+  const selected = state.models.filter((m) => selectedModelIds.has(m.id));
+  const mental = selected.filter((m) => m.category === "mental_model");
+  const frames = selected.filter((m) => m.category === "prompt_framework");
+
+  const lines = [];
+  lines.push("# 角色");
+  if (r) {
+    lines.push(`你是${r.name}${r.description ? "，" + r.description : ""}${c ? "，就职于" + c.name : ""}。`);
+  } else {
+    lines.push(`你是一位资深专家${c ? "，就职于" + c.name : ""}。`);
+  }
+  lines.push("");
+
+  if (state.identity && state.identity.trim()) {
+    lines.push("# 关于我（持续身份）");
+    lines.push(state.identity.trim());
+    lines.push("");
+  }
+
+  lines.push("# 项目背景");
+  lines.push(p && p.background ? p.background : (p ? p.name : "（未填写项目背景）"));
+  lines.push("");
+
+  if (p && p.memory && p.memory.trim()) {
+    lines.push("# 项目记忆（持续沉淀）");
+    lines.push(p.memory.trim());
+    lines.push("");
+  }
+
+  const atts = currentAttachments().filter((a) => a.include !== false);
+  if (atts.length) {
+    lines.push("# 补充信息源（附件）");
+    atts.forEach((a) => {
+      lines.push(`## 附件：${a.name}`);
+      lines.push(attachmentTextFor(a));
+      lines.push("");
+    });
+  }
+
+  lines.push("# 任务");
+  lines.push(task || "（请在此描述具体任务）");
+  lines.push("");
+
+  if (mental.length) {
+    lines.push("# 思考方式（请运用以下思维模型）");
+    mental.forEach((m) => lines.push(`- ${m.name}：${m.instruction}`));
+    lines.push("");
+  }
+
+  lines.push("# 表达与输出要求");
+  if (frames.length) {
+    frames.forEach((m) => lines.push(`- ${m.instruction}`));
+  }
+  lines.push("- 请给出结构化、可直接落地的交付物；如有不确定的关键信息，先向我提问澄清。");
+
+  const prompt = lines.join("\n");
+  promptPreview.value = prompt;
+
+  // 保存历史
+  state.history.push({
+    id: uid(), ts: Date.now(), task,
+    modelIds: [...selectedModelIds], prompt,
+  });
+  if (state.history.length > 30) state.history = state.history.slice(-30);
+  saveState();
+  renderHistory();
+}
+
+/* ============================================================
+   工具
+   ============================================================ */
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[ch]));
+}
+let toastTimer;
+function showToast(msg) {
+  const toast = $("toast");
+  toast.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 1600);
+}
+
+/* ============================================================
+   事件绑定
+   ============================================================ */
+companySelect.addEventListener("change", () => {
+  state.selected.companyId = companySelect.value;
+  saveState();
+  renderProjects(); renderRoles(); renderSummary(); saveState();
+});
+
+projectSelect.addEventListener("change", () => {
+  state.selected.projectId = projectSelect.value;
+  saveState();
+  renderRoles(); renderSummary(); renderAttachments(); loadAttachmentMediaForProject(); saveState();
+});
+
+roleSelect.addEventListener("change", () => {
+  state.selected.roleId = roleSelect.value;
+  saveState();
+  renderSummary();
+});
+
+$("addCompanyBtn").addEventListener("click", () => {
+  const name = prompt("新增公司名称：");
+  if (name && name.trim()) {
+    const c = { id: uid(), name: name.trim() };
+    state.companies.push(c);
+    state.selected.companyId = c.id;
+    saveState();
+    renderAll();
+  }
+});
+
+// 项目新增
+$("toggleAddProject").addEventListener("click", () => $("addProjectForm").classList.toggle("hidden"));
+$("cancelProjectBtn").addEventListener("click", () => {
+  $("addProjectForm").classList.add("hidden");
+  $("newProjectName").value = ""; $("newProjectBg").value = "";
+});
+$("saveProjectBtn").addEventListener("click", () => {
+  const name = $("newProjectName").value.trim();
+  if (!name) { showToast("请填写项目名称"); return; }
+  const proj = { id: uid(), companyId: state.selected.companyId, name, background: $("newProjectBg").value.trim() };
+  state.projects.push(proj);
+  state.selected.projectId = proj.id;
+  $("newProjectName").value = ""; $("newProjectBg").value = "";
+  $("addProjectForm").classList.add("hidden");
+  saveState();
+  renderProjects(); renderRoles(); renderSummary();
+});
+$("delProjectBtn").addEventListener("click", () => {
+  const p = getProject();
+  if (!p) return;
+  if (!confirm(`删除项目「${p.name}」及其角色？`)) return;
+  state.projects = state.projects.filter((x) => x.id !== p.id);
+  state.roles = state.roles.filter((r) => r.projectId !== p.id);
+  saveState();
+  renderProjects(); renderRoles(); renderSummary();
+});
+
+// 角色新增
+$("toggleAddRole").addEventListener("click", () => {
+  if (!state.selected.projectId) { showToast("请先选择/新增项目"); return; }
+  $("addRoleForm").classList.toggle("hidden");
+});
+$("cancelRoleBtn").addEventListener("click", () => {
+  $("addRoleForm").classList.add("hidden");
+  $("newRoleName").value = ""; $("newRoleDesc").value = "";
+});
+$("saveRoleBtn").addEventListener("click", () => {
+  if (!state.selected.projectId) { showToast("请先选择/新增项目"); return; }
+  const name = $("newRoleName").value.trim();
+  if (!name) { showToast("请填写角色名称"); return; }
+  const role = { id: uid(), projectId: state.selected.projectId, name, description: $("newRoleDesc").value.trim() };
+  state.roles.push(role);
+  state.selected.roleId = role.id;
+  $("newRoleName").value = ""; $("newRoleDesc").value = "";
+  $("addRoleForm").classList.add("hidden");
+  saveState();
+  renderRoles(); renderSummary();
+});
+$("delRoleBtn").addEventListener("click", () => {
+  const r = getRole();
+  if (!r) return;
+  if (!confirm(`删除角色「${r.name}」？`)) return;
+  state.roles = state.roles.filter((x) => x.id !== r.id);
+  saveState();
+  renderRoles(); renderSummary();
+});
+
+$("matchBtn").addEventListener("click", async () => {
+  const task = $("taskInput").value.trim();
+  if (!task) { showToast("请先描述任务"); return; }
+  const cfg = state.apiConfig;
+  if (cfg.enabled && cfg.smartMatch && cfg.apiKey) {
+    const btn = $("matchBtn");
+    btn.disabled = true; btn.textContent = "AI 匹配中…";
+    try {
+      const ids = await aiMatchModels(task);
+      if (ids && ids.length) { renderRecommendationsByIds(ids); }
+      else { renderRecommendations(task); }
+    } catch (e) {
+      showToast("AI 匹配失败，已用本地匹配");
+      renderRecommendations(task);
+    } finally {
+      btn.disabled = false; btn.textContent = "匹配模型";
+    }
+  } else {
+    renderRecommendations(task);
+  }
+});
+
+$("generateBtn").addEventListener("click", () => {
+  if (selectedModelIds.size === 0) {
+    // 未匹配过则先匹配
+    const task = $("taskInput").value.trim();
+    if (task) renderRecommendations(task);
+  }
+  generatePrompt();
+  showToast("已生成 Prompt");
+});
+
+$("copyBtn").addEventListener("click", async () => {
+  const text = promptPreview.value;
+  if (!text.trim()) { showToast("没有可复制的内容"); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("已复制到剪贴板");
+  } catch (e) {
+    promptPreview.select();
+    document.execCommand("copy");
+    showToast("已复制到剪贴板");
+  }
+});
+
+$("clearBtn").addEventListener("click", () => {
+  promptPreview.value = "";
+});
+
+/* ============================================================
+   推荐：按指定 id 列表渲染（AI 匹配结果用）
+   ============================================================ */
+function renderRecommendationsByIds(ids) {
+  const picked = ids.map((id) => state.models.find((m) => m.id === id)).filter(Boolean);
+  const mental = picked.filter((m) => m.category === "mental_model").map((m) => ({ m, s: 0 }));
+  const frame = picked.filter((m) => m.category === "prompt_framework").map((m) => ({ m, s: 0 }));
+  selectedModelIds = new Set(picked.map((m) => m.id));
+  recommendations.innerHTML = "";
+  recommendations.appendChild(buildGroup("思维模型（怎么想）· AI 推荐", mental.length ? mental : [{ m: state.models.find((x) => x.category === "mental_model"), s: 0 }].filter((x) => x.m)));
+  recommendations.appendChild(buildGroup("Prompt 框架（怎么写）· AI 推荐", frame.length ? frame : [{ m: state.models.find((x) => x.category === "prompt_framework"), s: 0 }].filter((x) => x.m)));
+}
+
+/* ============================================================
+   通用 Modal 控制
+   ============================================================ */
+function openModal(id) { $(id).classList.add("show"); }
+function closeModal(el) { el.classList.remove("show"); }
+document.querySelectorAll("[data-close-modal]").forEach((b) =>
+  b.addEventListener("click", () => closeModal(b.closest(".modal-overlay"))));
+document.querySelectorAll(".modal-overlay").forEach((ov) =>
+  ov.addEventListener("click", (e) => { if (e.target === ov) closeModal(ov); }));
+
+/* ============================================================
+   模型库编辑器
+   ============================================================ */
+let editingModelId = null;
+
+function renderModelEditList() {
+  const wrap = $("modelEditList");
+  wrap.innerHTML = "";
+  if (!state.models.length) { wrap.innerHTML = '<div class="empty">模型库为空，可在下方新增或恢复默认。</div>'; return; }
+  const order = ["mental_model", "prompt_framework"];
+  order.forEach((cat) => {
+    state.models.filter((m) => m.category === cat).forEach((m) => {
+      const row = document.createElement("div");
+      row.className = "me-row";
+      row.innerHTML =
+        `<div class="me-info"><div class="me-name">${esc(m.name)}</div><div class="me-desc">${esc(m.desc || "")}</div></div>` +
+        `<span class="me-cat">${cat === "mental_model" ? "思维模型" : "框架"}</span>`;
+      const actions = document.createElement("div");
+      actions.className = "me-actions";
+      const editBtn = document.createElement("button");
+      editBtn.className = "small ghost"; editBtn.textContent = "编辑";
+      editBtn.addEventListener("click", () => loadModelIntoForm(m));
+      const delBtn = document.createElement("button");
+      delBtn.className = "small danger"; delBtn.textContent = "删除";
+      delBtn.addEventListener("click", () => {
+        if (!confirm(`删除模型「${m.name}」？`)) return;
+        state.models = state.models.filter((x) => x.id !== m.id);
+        saveState(); renderModelEditList();
+      });
+      actions.appendChild(editBtn); actions.appendChild(delBtn);
+      row.appendChild(actions);
+      wrap.appendChild(row);
+    });
+  });
+}
+
+function loadModelIntoForm(m) {
+  editingModelId = m.id;
+  $("modelFormTitle").textContent = "编辑模型：" + m.name;
+  $("mfName").value = m.name || "";
+  $("mfCategory").value = m.category || "mental_model";
+  $("mfDesc").value = m.desc || "";
+  $("mfKeywords").value = (m.keywords || []).join(", ");
+  $("mfTags").value = (m.tags || []).join(", ");
+  $("mfInstruction").value = m.instruction || "";
+  $("modelEditList").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetModelForm() {
+  editingModelId = null;
+  $("modelFormTitle").textContent = "新增模型";
+  ["mfName", "mfDesc", "mfKeywords", "mfTags", "mfInstruction"].forEach((id) => ($(id).value = ""));
+  $("mfCategory").value = "mental_model";
+}
+
+function splitList(s) { return (s || "").split(/[,，、]/).map((x) => x.trim()).filter(Boolean); }
+
+$("mfSaveBtn").addEventListener("click", () => {
+  const name = $("mfName").value.trim();
+  if (!name) { showToast("请填写模型名称"); return; }
+  const data = {
+    name,
+    category: $("mfCategory").value,
+    desc: $("mfDesc").value.trim(),
+    keywords: splitList($("mfKeywords").value),
+    tags: splitList($("mfTags").value),
+    instruction: $("mfInstruction").value.trim() || ("请运用「" + name + "」的思路完成任务。"),
+  };
+  if (editingModelId) {
+    const m = state.models.find((x) => x.id === editingModelId);
+    if (m) Object.assign(m, data);
+    showToast("已更新模型");
+  } else {
+    state.models.push(Object.assign({ id: "u_" + uid() }, data));
+    showToast("已新增模型");
+  }
+  saveState();
+  renderModelEditList();
+  resetModelForm();
+});
+$("mfResetFormBtn").addEventListener("click", resetModelForm);
+$("resetModelsBtn").addEventListener("click", () => {
+  if (!confirm("恢复默认模型库？所有自定义模型与改动将被清除。")) return;
+  state.models = structuredClone(DEFAULT_MODELS);
+  saveState();
+  renderModelEditList();
+  resetModelForm();
+  showToast("已恢复默认模型库");
+});
+$("openModelsBtn").addEventListener("click", () => { renderModelEditList(); resetModelForm(); openModal("modelModal"); });
+
+/* ============================================================
+   导出 / 导入配置
+   ============================================================ */
+$("exportBtn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "prompt-generator-config-" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("配置已导出");
+});
+$("importBtn").addEventListener("click", () => $("importFile").click());
+$("importFile").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!confirm("导入将覆盖当前全部数据（公司/项目/角色/模型库/历史/设置），确定继续？")) return;
+      state = Object.assign(structuredClone(DEFAULT_STATE), data);
+      if (!Array.isArray(state.models) || state.models.length === 0) state.models = structuredClone(DEFAULT_MODELS);
+      state.apiConfig = Object.assign(structuredClone(DEFAULT_STATE.apiConfig), state.apiConfig || {});
+      saveState();
+      renderAll();
+      loadSettingsIntoForm();
+      closeModal($("settingsModal"));
+      showToast("配置已导入");
+    } catch (err) {
+      showToast("导入失败：文件格式不正确");
+    } finally {
+      e.target.value = "";
+    }
+  };
+  reader.readAsText(file);
+});
+
+/* ============================================================
+   设置 / API
+   ============================================================ */
+function loadSettingsIntoForm() {
+  const c = state.apiConfig;
+  $("apiEnabled").checked = !!c.enabled;
+  $("apiBaseUrl").value = c.baseUrl || "";
+  $("apiModel").value = c.model || "";
+  $("apiKey").value = c.apiKey || "";
+  $("apiSmartMatch").checked = !!c.smartMatch;
+  $("apiSmartGen").checked = !!c.smartGen;
+}
+function applyApiUI() {
+  const c = state.apiConfig;
+  $("aiGenBtn").style.display = (c.enabled && c.smartGen && c.apiKey) ? "inline-block" : "none";
+}
+$("saveSettingsBtn").addEventListener("click", () => {
+  state.apiConfig = {
+    enabled: $("apiEnabled").checked,
+    baseUrl: $("apiBaseUrl").value.trim() || "https://api.openai.com/v1",
+    model: $("apiModel").value.trim() || "gpt-5.5",
+    apiKey: $("apiKey").value.trim(),
+    smartMatch: $("apiSmartMatch").checked,
+    smartGen: $("apiSmartGen").checked,
+  };
+  saveState();
+  applyApiUI();
+  closeModal($("settingsModal"));
+  showToast("设置已保存");
+});
+$("openSettingsBtn").addEventListener("click", () => { loadSettingsIntoForm(); openModal("settingsModal"); });
+
+/* ============================================================
+   AI 调用（OpenAI 兼容 /chat/completions）
+   ============================================================ */
+async function callAI(messages, { json = false } = {}) {
+  const c = state.apiConfig;
+  const res = await fetch(c.baseUrl.replace(/\/$/, "") + "/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + c.apiKey },
+    body: JSON.stringify({
+      model: c.model,
+      messages,
+      ...(json ? { response_format: { type: "json_object" } } : {}),
+    }),
+  });
+  if (!res.ok) throw new Error("API " + res.status);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+async function aiMatchModels(task) {
+  const catalog = state.models.map((m) => ({ id: m.id, name: m.name, category: m.category, desc: m.desc }));
+  const sys = "你是思维模型与Prompt框架推荐助手。从给定模型清单中，挑选最适合该任务的：思维模型(mental_model)最多5个、Prompt框架(prompt_framework)最多4个。只返回JSON：{\"ids\":[\"id1\",\"id2\"]}，ids取自清单中的id。";
+  const usr = "任务：" + task + "\n\n模型清单(JSON)：" + JSON.stringify(catalog);
+  const content = await callAI([{ role: "system", content: sys }, { role: "user", content: usr }], { json: true });
+  try {
+    const parsed = JSON.parse(content);
+    return Array.isArray(parsed.ids) ? parsed.ids : [];
+  } catch (e) { return []; }
+}
+
+$("aiGenBtn").addEventListener("click", async () => {
+  const prompt = promptPreview.value.trim();
+  if (!prompt) { generatePrompt(); }
+  const finalPrompt = promptPreview.value.trim();
+  if (!finalPrompt) { showToast("请先 Generate 一个 Prompt"); return; }
+  const btn = $("aiGenBtn");
+  btn.disabled = true; btn.textContent = "AI 生成中…";
+  try {
+    const imgs = currentAttachments()
+      .filter((a) => a.kind === "image" && a.include !== false)
+      .map((a) => attachmentMediaCache[a.id]).filter(Boolean);
+    let userContent = finalPrompt;
+    if (imgs.length) {
+      userContent = [{ type: "text", text: finalPrompt },
+        ...imgs.map((url) => ({ type: "image_url", image_url: { url } }))];
+    }
+    const result = await callAI([
+      { role: "system", content: "你是资深专家，请严格按用户提供的 Prompt 完成高质量、可直接交付的结果。" },
+      { role: "user", content: userContent },
+    ]);
+    promptPreview.value = result || "(AI 未返回内容)";
+    showToast("AI 已生成结果");
+  } catch (e) {
+    showToast("AI 生成失败：" + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "AI 直接生成结果";
+  }
+});
+
+/* ============================================================
+   附件：IndexedDB 存储 + 文件解析（混合模式）
+   ============================================================ */
+const MAX_ATT_CHARS = 6000;            // 每个附件注入 Prompt 的最大字数
+const attachmentTextCache = {};        // id -> 提取的文字
+const attachmentMediaCache = {};       // id -> 图片 dataURL
+
+let _db = null;
+function idb() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("promptGenDB", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("attachments", { keyPath: "id" });
+    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbPut(rec) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("attachments", "readwrite");
+    tx.objectStore("attachments").put(rec);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+}
+async function idbGet(id) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const r = db.transaction("attachments").objectStore("attachments").get(id);
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbDel(id) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("attachments", "readwrite");
+    tx.objectStore("attachments").delete(id);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+}
+
+// 按需加载 CDN 解析库
+const _loadedScripts = {};
+function loadScript(url) {
+  if (_loadedScripts[url]) return _loadedScripts[url];
+  _loadedScripts[url] = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = url; s.onload = resolve; s.onerror = () => reject(new Error("加载失败：" + url));
+    document.head.appendChild(s);
+  });
+  return _loadedScripts[url];
+}
+const CDN = {
+  mammoth: "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js",
+  xlsx: "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+  jszip: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+  pdf: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
+  pdfWorker: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+};
+
+function readAsText(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsText(file); });
+}
+function readAsDataURL(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+}
+function readAsArrayBuffer(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsArrayBuffer(file); });
+}
+
+function fileExt(name) { return (name.split(".").pop() || "").toLowerCase(); }
+
+// 返回 { kind, text, dataUrl, status } status: ok | image | manual | error
+async function parseFile(file) {
+  const ext = fileExt(file.name);
+  try {
+    // 离线直读文本
+    if (["txt", "md", "csv", "json", "log"].includes(ext)) {
+      return { kind: "text", text: (await readAsText(file)).slice(0, MAX_ATT_CHARS * 3), status: "ok" };
+    }
+    // 图片：存 dataURL，留给 AI 识图
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+      return { kind: "image", dataUrl: await readAsDataURL(file), status: "image" };
+    }
+    if (!navigator.onLine) return { kind: "binary", status: "manual" };
+    // 联网解析
+    if (ext === "docx") {
+      await loadScript(CDN.mammoth);
+      const ab = await readAsArrayBuffer(file);
+      const r = await window.mammoth.extractRawText({ arrayBuffer: ab });
+      return { kind: "doc", text: (r.value || "").slice(0, MAX_ATT_CHARS * 3), status: "ok" };
+    }
+    if (ext === "xlsx" || ext === "xls") {
+      await loadScript(CDN.xlsx);
+      const ab = await readAsArrayBuffer(file);
+      const wb = window.XLSX.read(ab, { type: "array" });
+      let out = "";
+      wb.SheetNames.forEach((n) => { out += "### " + n + "\n" + window.XLSX.utils.sheet_to_csv(wb.Sheets[n]) + "\n\n"; });
+      return { kind: "sheet", text: out.slice(0, MAX_ATT_CHARS * 3), status: "ok" };
+    }
+    if (ext === "pptx") {
+      await loadScript(CDN.jszip);
+      const ab = await readAsArrayBuffer(file);
+      const zip = await window.JSZip.loadAsync(ab);
+      const names = Object.keys(zip.files).filter((n) => /ppt\/slides\/slide\d+\.xml$/.test(n)).sort();
+      let out = "";
+      for (const n of names) {
+        const xml = await zip.files[n].async("string");
+        const texts = (xml.match(/<a:t>([\s\S]*?)<\/a:t>/g) || []).map((t) => t.replace(/<[^>]+>/g, ""));
+        if (texts.length) out += texts.join(" ") + "\n\n";
+      }
+      return { kind: "ppt", text: out.slice(0, MAX_ATT_CHARS * 3), status: out ? "ok" : "manual" };
+    }
+    if (ext === "pdf") {
+      await loadScript(CDN.pdf);
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = CDN.pdfWorker;
+      const ab = await readAsArrayBuffer(file);
+      const pdf = await window.pdfjsLib.getDocument({ data: ab }).promise;
+      let out = "";
+      const max = Math.min(pdf.numPages, 50);
+      for (let i = 1; i <= max; i++) {
+        const page = await pdf.getPage(i);
+        const tc = await page.getTextContent();
+        out += tc.items.map((it) => it.str).join(" ") + "\n";
+        if (out.length > MAX_ATT_CHARS * 3) break;
+      }
+      return { kind: "pdf", text: out.slice(0, MAX_ATT_CHARS * 3), status: "ok" };
+    }
+    return { kind: "binary", status: "manual" };
+  } catch (e) {
+    return { kind: "binary", status: "error", error: e.message };
+  }
+}
+
+function currentAttachments() {
+  return state.attachments.filter((a) => a.projectId === state.selected.projectId);
+}
+function attachmentTextFor(a) {
+  const parts = [];
+  const txt = attachmentTextCache[a.id];
+  if (txt && txt.trim()) parts.push(txt.slice(0, MAX_ATT_CHARS) + (txt.length > MAX_ATT_CHARS ? "\n…（内容已截断）" : ""));
+  if (a.summary && a.summary.trim()) parts.push("（用户备注：" + a.summary.trim() + "）");
+  if (!parts.length) {
+    if (a.kind === "image") parts.push("（图片附件，已随 AI 调用一并提供以供识图）");
+    else parts.push("（无可提取文字，请结合文件名与备注理解）");
+  }
+  return parts.join("\n");
+}
+
+async function loadAttachmentMediaForProject() {
+  for (const a of currentAttachments()) {
+    if (attachmentTextCache[a.id] !== undefined || attachmentMediaCache[a.id] !== undefined) continue;
+    try {
+      const rec = await idbGet(a.id);
+      if (rec) {
+        if (rec.text !== undefined) attachmentTextCache[a.id] = rec.text || "";
+        if (rec.dataUrl) attachmentMediaCache[a.id] = rec.dataUrl;
+      }
+    } catch (e) {}
+  }
+}
+
+function badgeFor(a) {
+  if (a.kind === "image") return '<span class="att-badge img">图片·识图</span>';
+  if (a.status === "ok") return '<span class="att-badge ok">已提取文字</span>';
+  if (a.status === "manual") return '<span class="att-badge warn">需手写摘要</span>';
+  if (a.status === "error") return '<span class="att-badge err">解析失败</span>';
+  if (a.status === "loading") return '<span class="att-badge">解析中…</span>';
+  return '<span class="att-badge">已保存</span>';
+}
+
+function renderAttachments() {
+  const list = $("attList");
+  if (!list) return;
+  list.innerHTML = "";
+  const atts = currentAttachments();
+  if (!state.selected.projectId) { list.innerHTML = '<div class="hint" style="margin-top:6px;">先选择/新增项目后再添加附件。</div>'; return; }
+  if (!atts.length) return;
+  atts.forEach((a) => {
+    const item = document.createElement("div");
+    item.className = "att-item";
+    const sizeKB = (a.size / 1024).toFixed(0);
+    item.innerHTML =
+      `<div class="att-top"><span class="att-name">${esc(a.name)}</span>${badgeFor(a)}</div>` +
+      `<div class="att-meta">${sizeKB} KB</div>`;
+    const cbWrap = document.createElement("label");
+    cbWrap.className = "att-cb"; cbWrap.style.marginTop = "5px";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = a.include !== false;
+    cb.addEventListener("change", () => { a.include = cb.checked; saveState(); });
+    cbWrap.appendChild(cb); cbWrap.appendChild(document.createTextNode("纳入 Prompt"));
+    const del = document.createElement("button");
+    del.className = "del-link"; del.textContent = "删除"; del.style.float = "right";
+    del.addEventListener("click", async () => {
+      state.attachments = state.attachments.filter((x) => x.id !== a.id);
+      delete attachmentTextCache[a.id]; delete attachmentMediaCache[a.id];
+      try { await idbDel(a.id); } catch (e) {}
+      saveState(); renderAttachments();
+    });
+    cbWrap.appendChild(del);
+    item.appendChild(cbWrap);
+    const sum = document.createElement("textarea");
+    sum.placeholder = a.status === "manual" || a.status === "error"
+      ? "请手写这份文件的关键信息摘要（将作为信息源注入）"
+      : "可选：补充备注 / 你希望 AI 重点关注什么";
+    sum.value = a.summary || "";
+    sum.addEventListener("input", () => { a.summary = sum.value; });
+    sum.addEventListener("change", () => saveState());
+    item.appendChild(sum);
+    list.appendChild(item);
+  });
+}
+
+async function handleFiles(fileList) {
+  if (!state.selected.projectId) { showToast("请先选择/新增项目"); return; }
+  const files = Array.from(fileList);
+  for (const file of files) {
+    const id = "att_" + uid();
+    const meta = { id, projectId: state.selected.projectId, name: file.name, size: file.size,
+      kind: "binary", status: "loading", include: true, summary: "" };
+    state.attachments.push(meta);
+    renderAttachments();
+    const parsed = await parseFile(file);
+    meta.kind = parsed.kind; meta.status = parsed.status;
+    if (parsed.text !== undefined) attachmentTextCache[id] = parsed.text;
+    if (parsed.dataUrl) attachmentMediaCache[id] = parsed.dataUrl;
+    try { await idbPut({ id, text: parsed.text || "", dataUrl: parsed.dataUrl || "" }); } catch (e) {}
+    saveState();
+    renderAttachments();
+  }
+  showToast("附件已添加");
+}
+
+$("attDrop").addEventListener("click", () => $("attInput").click());
+$("attInput").addEventListener("change", (e) => { handleFiles(e.target.files); e.target.value = ""; });
+["dragover", "dragenter"].forEach((ev) => $("attDrop").addEventListener(ev, (e) => { e.preventDefault(); $("attDrop").classList.add("drag"); }));
+["dragleave", "drop"].forEach((ev) => $("attDrop").addEventListener(ev, (e) => { e.preventDefault(); $("attDrop").classList.remove("drag"); }));
+$("attDrop").addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+
+/* ============================================================
+   记忆 / 身份
+   ============================================================ */
+function renderMemoryUI() {
+  $("memIdentity").value = state.identity || "";
+  const p = getProject();
+  $("memProjTitle").textContent = p ? `项目记忆：${p.name}` : "项目记忆（请先选择项目）";
+  $("memProject").value = p ? (p.memory || "") : "";
+  $("memProject").disabled = !p;
+}
+$("openMemoryBtn").addEventListener("click", () => { renderMemoryUI(); openModal("memoryModal"); });
+$("saveMemoryBtn").addEventListener("click", () => {
+  state.identity = $("memIdentity").value;
+  const p = getProject();
+  if (p) p.memory = $("memProject").value;
+  saveState();
+  renderSummary();
+  showToast("记忆已保存");
+});
+$("aiMemoryBtn").addEventListener("click", async () => {
+  const cfg = state.apiConfig;
+  if (!(cfg.enabled && cfg.apiKey)) { showToast("请先在「设置 / API」启用 AI"); return; }
+  const p = getProject();
+  if (!p) { showToast("请先选择项目"); return; }
+  const last = state.history[state.history.length - 1];
+  if (!last) { showToast("还没有生成记录可供提炼"); return; }
+  const btn = $("aiMemoryBtn");
+  btn.disabled = true; btn.textContent = "AI 提炼中…";
+  try {
+    const sys = "你负责维护项目记忆。基于已有记忆与最近一次任务/产出，提炼出应长期记住的要点（结论、决定、偏好、待办、坑），输出更新后的简洁中文记忆（要点列表，去重、保留有价值信息）。只输出记忆正文。";
+    const usr = "【已有项目记忆】\n" + (p.memory || "（空）") +
+      "\n\n【最近任务】\n" + (last.task || "") +
+      "\n\n【最近产出/Prompt 摘要】\n" + (promptPreview.value || last.prompt || "").slice(0, 4000);
+    const updated = await callAI([{ role: "system", content: sys }, { role: "user", content: usr }]);
+    if (updated && updated.trim()) {
+      p.memory = updated.trim();
+      $("memProject").value = p.memory;
+      saveState();
+      showToast("AI 已更新项目记忆");
+    } else { showToast("AI 未返回内容"); }
+  } catch (e) {
+    showToast("AI 提炼失败：" + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "AI 提炼并追加项目记忆";
+  }
+});
+
+/* ============================================================
+   初始化
+   ============================================================ */
+renderAll();
+applyApiUI();
+loadAttachmentMediaForProject();
+saveState();
+</script>
+</body>
+</html>
